@@ -36,7 +36,7 @@ public class SentMail {
     }
 
     //public String getBody(){return body.get();}
-
+    // comment number 2
 
     public void setDate(String date) {
         this.date.set(date);
