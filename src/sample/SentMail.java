@@ -10,7 +10,7 @@ public class SentMail {
 
     SimpleStringProperty Subject;
     //SimpleStringProperty body;
-
+   ///editing comment only to check the version control
     public SentMail(String date, String to, String subject/*,String body*/) {
         this.date = new SimpleStringProperty(date);
         this.to = new SimpleStringProperty(to);
