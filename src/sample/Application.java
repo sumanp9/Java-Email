@@ -1,0 +1,405 @@
+package sample;
+ import javafx.application.Platform;
+ import javafx.beans.value.ChangeListener;
+ import javafx.beans.value.ObservableValue;
+ import javafx.collections.FXCollections;
+ import javafx.collections.ObservableList;
+ import javafx.event.ActionEvent;
+ import javafx.event.Event;
+ import javafx.fxml.FXMLLoader;
+ import javafx.scene.Parent;
+ import javafx.scene.Scene;
+ import javafx.scene.control.*;
+ import javafx.scene.control.cell.PropertyValueFactory;
+ import javafx.scene.image.Image;
+ import javafx.scene.image.ImageView;
+ import javafx.scene.text.Text;
+ import javafx.stage.Stage;
+
+ import java.io.*;
+import javax.mail.*;
+ import javax.mail.internet.*;
+ import java.util.ArrayList;
+ import java.util.Date;
+ import java.util.Properties;
+ import javax.mail.search.FlagTerm;
+
+public class Application {
+
+    public String myEmail, myPass;
+    public TextField txttoEmail,txtSubject;
+    public TextArea txtBody;
+    public Text txtGreeting;
+    public Button btnSend,btnLogout,btnRefresh,btnPrev,btnNext;
+    public static Email e1;
+
+    public int inboxLength,emailNum ,sentNum =0 ;
+    public SentMail e2;
+    public String host = "imap.gmail.com";
+    public String mailStoreType = "pop3";
+    public Tab tabCompose;
+    public TabPane tabPane;
+    public  TableView tblViewEmail,tblViewSent;
+
+    public TableColumn tcDate =  new TableColumn("Date"),
+            tcSender =  new TableColumn("Sender"),
+            tcSubject = new TableColumn("Subject"),
+
+
+            tcSentDate =  new TableColumn("Date"),
+            tcSentSubject = new TableColumn("Subject"),
+            tcTo = new TableColumn("Recipient");
+
+
+    private static ArrayList<Email> emailArray = new ArrayList<>();
+    private static ObservableList<Email> obsEmailArray = FXCollections.observableArrayList();
+
+    private static ArrayList<SentMail> sentEmailArray = new ArrayList<>();
+    private static ObservableList<SentMail> obsSentEmailArray = FXCollections.observableArrayList();
+
+    public void initialize(String email, String pwd) throws IOException {
+        myEmail = email;
+        myPass = pwd;
+
+        System.out.println(email+" "+ pwd);
+        tblViewEmail.getItems().clear();
+        recieveMail(host, mailStoreType, email, pwd);
+
+        addButtonImg();
+        txtGreeting.setText(txtGreeting.getText()+ " "+ myEmail);
+
+
+        /*tabPane.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Tab>() {
+
+            @Override
+            public void changed(ObservableValue<? extends Tab> observable, Tab oldTab, Tab newTab) {
+                if (newTab == tabCompose) {
+                    txttoEmail.requestFocus();
+                }
+            }
+        });*/
+    }
+
+    private void addButtonImg() {
+        File image =  new File("src/images/send.jpg");
+        Image img =  new Image(image.toURI().toString());
+        btnSend.setGraphic(new ImageView(img));
+        File image2 =  new File("src/images/refresh.png");
+        Image img2 =  new Image(image2.toURI().toString());
+        btnRefresh.setGraphic(new ImageView(img2));
+
+    }
+
+    public void recieveMail(String host, String mailStoreType, String email, String pwd) throws IOException {
+
+
+        try {
+            // create properties field
+            Properties properties = new Properties();
+            properties.put("mail.store.protocol", "imaps");
+            Session emailSession = Session.getDefaultInstance(properties);
+            // emailSession.setDebug(true);
+
+            // create the POP3 store object and connect with the pop server
+            Store store = emailSession.getStore("imaps");
+
+            store.connect(host, email, pwd);
+
+            Folder emailFolder = store.getFolder("INBOX");
+            Folder sentFolder = store.getFolder("[Gmail]/Sent Mail");
+            emailFolder.open(Folder.READ_ONLY);
+            sentFolder.open(Folder.READ_ONLY);
+
+            /*javax.mail.Folder[] folders = store.getDefaultFolder().list("*");
+            for (javax.mail.Folder folder : folders) {
+                if ((folder.getType() & javax.mail.Folder.HOLDS_MESSAGES) != 0) {
+                    System.out.println(folder.getFullName() + ": " + folder.getMessageCount());
+                }
+            }*/
+
+            // retrieve the messages from the folder in an array and print it
+            Message[] inboxMsg = emailFolder.getMessages();
+
+            Message messages[] = sentFolder.search(new FlagTerm(new Flags(Flags.Flag.SEEN), true));
+            FetchProfile fp = new FetchProfile();
+            fp.add(FetchProfile.Item.ENVELOPE);
+            fp.add(FetchProfile.Item.CONTENT_INFO);
+            sentFolder.fetch(messages, fp);
+            inboxLength = inboxMsg.length;
+            emailNum = inboxLength-10;
+
+
+
+                for (int i = inboxLength-1; i!=0; i--) {
+                    System.out.println("Email Number " + i );
+                    String date = inboxMsg[i].getSentDate().toString();
+                    String sender = inboxMsg[i].getFrom()[0].toString();
+                    String subject = inboxMsg[i].getSubject();
+                    //String body =writePart(messages[i]);
+                    e1 = new Email(date, sender, subject);//,body);
+                    emailArray.add(e1);
+                    //emailNum++;
+
+
+                    // close the store and folder objects
+                }
+
+
+            obsEmailArray.addAll(emailArray);
+            ArrayList<SentMail> eArray =  printAllMessages(messages,sentEmailArray);
+
+            obsSentEmailArray.addAll(eArray);
+            emailFolder.close(false);
+            store.close();
+            //sentFolder.close(true);
+            fillEmailTable(obsEmailArray,obsSentEmailArray);
+        }
+        catch(NoSuchProviderException e){
+            //showErrorMsgAlert();
+            Alert a2 = new Alert(Alert.AlertType.INFORMATION);
+            a2.setTitle("Welcome " + email);
+            a2.setContentText("Please enable no provide ");
+            a2.showAndWait();
+            goback();
+
+            // e.printStackTrace();
+
+
+        } catch(MessagingException e){
+         //   e.printStackTrace();
+            // showErrorMsgAlert();
+            Alert a2 = new Alert(Alert.AlertType.INFORMATION);
+            a2.setTitle("Welcome " + email);
+            a2.setContentText("Please enable less secure apps from your Google account. Thank you!!!");
+            a2.showAndWait();
+
+            goback();
+
+        } catch(Exception e){
+           // e.printStackTrace();
+            // showErrorMsgAlert();
+            Alert a2 = new Alert(Alert.AlertType.INFORMATION);
+            a2.setTitle("Welcome " + email);
+            a2.setContentText("Please enable exception ");
+            a2.showAndWait();
+
+            goback();
+        }
+    }
+
+
+
+    private ArrayList<SentMail> printAllMessages(Message[] msgs, ArrayList<SentMail> email) throws Exception
+    {
+        for (int i = msgs.length-1; i > 0; i--)
+        {
+            email = printEnvelope(msgs[i],email);
+        }
+        return email;
+    }
+
+    public ArrayList<SentMail> printEnvelope(Message message, ArrayList<SentMail> email) throws Exception
+    {
+        Address[] a;
+        // FROM
+        if ((a = message.getFrom()) != null)
+        {
+            for (int j = 0; j < a.length; j++)
+            {
+                System.out.println("FROM: " + a[j].toString());
+            }
+        }
+        // TO
+        if ((a = message.getRecipients(Message.RecipientType.TO)) != null)
+        {
+            for (int j = 0; j < a.length; j++)
+            {
+                System.out.println("TO: " + a[j].toString());
+            }
+        }
+        String subject = message.getSubject();
+        String sender = message.getFrom()[0].toString();
+
+        String receivedDate = message.getReceivedDate().toString();
+        //String content = message.getContent().toString();
+        Address[] recipients = message.getRecipients(Message.RecipientType.TO);
+        String reciever = recipients[0].toString();
+
+        e2= new SentMail(receivedDate,reciever,subject);
+        email.add(e2);
+
+        return email;
+    }
+
+
+    public  String writePart(Part p) throws Exception {
+        String msg = "" ;
+        if (p instanceof Message)
+
+        /*System.out.println("----------------------------");
+        System.out.println("CONTENT-TYPE: " + p.getContentType());*/
+
+        //check if the content is plain text
+        if (p.isMimeType("text/plain")) {
+          /* System.out.println("This is plain text");
+            System.out.println("---------------------------");*/
+            msg+=((String) p.getContent());
+        }
+        //check if the content has attachment
+        else if (p.isMimeType("multipart/*")) {
+           /* System.out.println("This is a Multipart");
+            System.out.println("---------------------------");*/
+            Multipart mp = (Multipart) p.getContent();
+            int count = mp.getCount();
+            for (int i = 0; i < count; i++)
+                writePart(mp.getBodyPart(i));
+        }
+        //check if the content is a nested message
+
+        else {
+            Object o = p.getContent();
+            if (o instanceof String) {
+              /*  System.out.println("This is a string");
+                System.out.println("---------------------------");*/
+                msg+=((String) o);
+
+            }
+            else if (o instanceof InputStream) {
+              /*  System.out.println("This is just an input stream");
+                System.out.println("---------------------------");*/
+                InputStream is = (InputStream) o;
+                is = (InputStream) o;
+                int c;
+                while ((c = is.read()) != -1)
+                    msg+=(c);
+
+            }
+            else {
+               /* System.out.println("This is an unknown type");
+                System.out.println("---------------------------");*/
+                msg+=(o.toString());
+
+            }
+        }
+        return msg;
+
+    }
+
+    public void btnSendPressed(ActionEvent actionEvent) {
+        if (!(txttoEmail.getText().isEmpty() || txtBody.getText().isEmpty() || txtSubject.getText().isEmpty())) {
+            sendEmail();
+        }
+
+    }
+
+    private void sendEmail() {
+        String recipient = txttoEmail.getText();
+        String subject = txtSubject.getText();
+        String body = txtBody.getText();
+
+        Properties properties = System.getProperties();
+        properties.setProperty("mail.smtp.ssl.enable", "true");
+        properties.put("mail.smtp.auth", "true");
+        properties.put("mail.smtp.starttls.enable", "true");
+        properties.put("mail.smtp.starttls.required", "true");
+        properties.put("mail.smtp.host", "smtp.gmail.com");
+        properties.put("mail.smtp.port", "465");
+
+        Session session = Session.getInstance(properties);
+
+        try {
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(myEmail));
+            message.addRecipient(Message.RecipientType.TO, new InternetAddress(recipient));
+            message.setSubject(subject);
+            message.setText(body);
+            Transport.send(message, myEmail, myPass);
+            txtSubject.clear();
+            txtBody.clear();
+            txttoEmail.clear();
+            txttoEmail.requestFocus();
+            System.out.println("Sent message successfully....");
+            Alert a = new Alert(Alert.AlertType.INFORMATION);
+            a.setTitle("Sent");
+            a.setContentText("Sent message successfully....");
+            a.showAndWait();
+        } catch (MessagingException mex) {
+           // mex.printStackTrace();
+            Alert a = new Alert(Alert.AlertType.WARNING);
+            a.setTitle("Message not sent. Something went wrong please try again");
+            a.setContentText("Check the following: \n Check if you are sending it to corect email address \nPlease check if all the fields are filled or not");
+            a.showAndWait();
+        }
+
+
+    }
+
+
+    private void fillEmailTable(ObservableList<Email> obsEmailArray, ObservableList<SentMail> obsSentArray) {
+
+        populateTable(tcDate,tcSender,tcSubject,tcTo,tcSentDate,tcSentSubject, obsEmailArray,obsSentArray);
+    }
+
+    private void populateTable(TableColumn tcDate, TableColumn tcSender, TableColumn tcSubject,TableColumn tcTo,TableColumn tcSentSubject,TableColumn tcSentDate,  ObservableList<Email> obsEmailArray, ObservableList<SentMail> obsSentArray) {
+       tblViewEmail.getColumns().clear();
+       tblViewSent.getColumns().clear();
+
+       tblViewEmail.setEditable(true);
+       tblViewSent.setEditable(true);
+
+        tcDate.setCellValueFactory(new PropertyValueFactory<Email,String>("date"));
+        tcSender.setCellValueFactory(new PropertyValueFactory<Email,String>("sender"));
+        tcSubject.setCellValueFactory(new PropertyValueFactory<Email,String>("Subject"));
+
+        tblViewEmail.setItems(obsEmailArray);
+        tblViewEmail.getColumns().addAll(tcDate,tcSender,tcSubject);
+
+        tcSentDate.setCellValueFactory(new PropertyValueFactory<SentMail,String>("date"));
+        tcTo.setCellValueFactory(new PropertyValueFactory<SentMail,String>("to"));
+        tcSentSubject.setCellValueFactory(new PropertyValueFactory<SentMail,String>("Subject"));
+
+
+
+        tblViewSent.setItems(obsSentArray);
+        tblViewSent.getColumns().addAll(tcTo,tcSentSubject,tcSentDate);
+    }
+
+    public void btnLogoutPressed(ActionEvent actionEvent) throws IOException {
+        Alert a = new Alert(Alert.AlertType.CONFIRMATION);
+        a.setTitle("Log out");
+        a.setContentText("Logging you out. Thank you !!!");
+        a.showAndWait();
+        goback();
+
+    }
+
+    private void goback() throws IOException {
+        Stage stage = (Stage) txtBody.getScene().getWindow();
+        stage.close();
+        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("Login.fxml"));
+        Parent root1 = (Parent) fxmlLoader.load();
+        Stage newStage = new Stage();
+        newStage.setTitle("Email");
+        newStage.setScene(new Scene(root1));
+        newStage.show();
+    }
+
+    public void btnRefreshPressed(ActionEvent actionEvent) throws IOException {
+        clearTable();
+        recieveMail(host, mailStoreType, myEmail, myPass);
+    }
+
+
+
+    private void clearTable() {
+        tblViewSent.getItems().clear();
+        tblViewEmail.getItems().clear();
+        obsSentEmailArray.clear();
+        obsEmailArray.clear();
+        emailArray.clear();
+        sentEmailArray.clear();
+    }
+
+
+}
+
